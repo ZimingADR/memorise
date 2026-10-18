@@ -1,0 +1,145 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build_ios:
+    name: Build Unsigned iOS IPA
+    runs-on: macos-14
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build iOS (No Codesign)
+        run: flutter build ios --release --no-codesign
+
+      - name: Package Unsigned IPA for SideStore / AltStore
+        run: |
+          mkdir -p Payload
+          cp -r build/ios/iphoneos/Runner.app Payload/
+          zip -r -9 AI_Memory_Unsigned.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI_Memory_Unsigned_IPA
+          path: AI_Memory_Unsigned.ipa
+          retention-days: 30
+
+  build_windows:
+    name: Build Windows Release
+    runs-on: windows-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Enable Windows Desktop
+        run: flutter config --enable-windows-desktop
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test
+
+      - name: Build Windows Executable
+        run: flutter build windows --release
+
+      - name: Package Windows Zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath AI_Memory_Windows.zip
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI_Memory_Windows_Desktop
+          path: AI_Memory_Windows.zip
+          retention-days: 30
+
+  release:
+    name: Publish to GitHub Release
+    needs: [build_ios, build_windows]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Create release directory
+        run: mkdir -p release_assets
+
+      - name: Download iOS IPA Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AI_Memory_Unsigned_IPA
+          path: release_assets
+
+      - name: Download Windows Zip Artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: AI_Memory_Windows_Desktop
+          path: release_assets
+
+      - name: Prepare SideStore Source with Accurate Size
+        run: |
+          IPA_SIZE=$(stat -c%s release_assets/AI_Memory_Unsigned.ipa 2>/dev/null || wc -c < release_assets/AI_Memory_Unsigned.ipa)
+          echo "IPA Size: $IPA_SIZE bytes"
+          cp sidestore.json release_assets/sidestore.json
+          sed -i "s/\"size\": [0-9]*/\"size\": $IPA_SIZE/" release_assets/sidestore.json
+
+      - name: Determine Tag Name
+        id: tag_info
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            TAG="${GITHUB_REF#refs/tags/}"
+          else
+            TAG="v1.0.0"
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Publish or Update Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag_info.outputs.tag }}"
+          if gh release view "$TAG" > /dev/null 2>&1; then
+            echo "Release $TAG exists, uploading assets..."
+            gh release upload "$TAG" \
+              release_assets/AI_Memory_Unsigned.ipa \
+              release_assets/AI_Memory_Windows.zip \
+              release_assets/sidestore.json \
+              --clobber
+          else
+            echo "Creating release $TAG..."
+            gh release create "$TAG" \
+              release_assets/AI_Memory_Unsigned.ipa \
+              release_assets/AI_Memory_Windows.zip \
+              release_assets/sidestore.json \
+              --title "Memorise $TAG" \
+              --notes "### 🚀 Memorise 跨端 AI 记忆助手官方发布产物\n\n- 📱 **iOS 无签名 IPA**：\`AI_Memory_Unsigned.ipa\`（支持 SideStore / AltStore / TrollStore 安装与无限期自签）\n- 💻 **Windows 桌面版**：\`AI_Memory_Windows.zip\`（解压即用）\n- 📲 **SideStore 软件源元数据**：\`sidestore.json\`\n\n#### 📲 SideStore 订阅链接\n直接在 iPhone Safari 中点击或在 SideStore 中添加：\n\`\`\`text\nsidestore://source?url=https://raw.githubusercontent.com/ZimingADR/memorise/main/sidestore.json\n\`\`\`"
+          fi

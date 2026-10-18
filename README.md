@@ -48,15 +48,34 @@
 
 ---
 
-## 🚀 自动化构建与 CI/CD
+## 🚀 自动化构建与 GitHub Release 自动发布
 
-本项目已配置 GitHub Actions 自动化云编译：
+本项目已配置 GitHub Actions 自动化云端流水线 ([`.github/workflows/build_and_release.yml`](.github/workflows/build_and_release.yml))：
 
-- **iOS 无签名 IPA** (`.github/workflows/build_ios_ipa.yml`)：
-  - 触发分支：`main`, `master`
-  - 产物：`AI_Memory_Unsigned.ipa`（可直接通过 SideStore / AltStore 在手机端安装与续签）
-- **Windows 桌面端** (`.github/workflows/build_windows.yml`)：
-  - 产物：`AI_Memory_Windows.zip`（解压即可在 Windows 本地直接双击运行）
+每次代码推送到 `main` 分支或打上版本 Tag 时，云端自动编译并直接发布到 GitHub Releases：
+- 📱 **iOS 无签名 IPA**：`AI_Memory_Unsigned.ipa`（可直接通过 SideStore / AltStore / TrollStore 安装与无限期续签）
+- 💻 **Windows 桌面版**：`AI_Memory_Windows.zip`（解压即可在 Windows 本地直接双击运行）
+- 📲 **SideStore 软件源**：`sidestore.json`
+
+---
+
+## 📲 SideStore 订阅源与一键安装
+
+通过 SideStore 订阅源，您可以直接在 iPhone 上一键安装 Memorise 并获取后续版本的无感自动更新推送！
+
+### 方式一：在 iPhone Safari 中一键添加（推荐）
+点击以下链接唤起 SideStore 并添加软件源：
+> [📲 点击添加 Memorise 到 SideStore](sidestore://source?url=https://raw.githubusercontent.com/ZimingADR/memorise/main/sidestore.json)
+
+```text
+sidestore://source?url=https://raw.githubusercontent.com/ZimingADR/memorise/main/sidestore.json
+```
+
+### 方式二：手动复制订阅链接
+在 SideStore App 中切换到 **Sources** ➔ 点击右上角 **+** ➔ 粘贴以下链接：
+```text
+https://raw.githubusercontent.com/ZimingADR/memorise/main/sidestore.json
+```
 
 ---
 

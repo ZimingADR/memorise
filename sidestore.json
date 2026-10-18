@@ -1,0 +1,38 @@
+{
+  "$schema": "https://github.com/SideStore/SideSource/raw/main/dist/schema.json",
+  "name": "Memorise AI 记忆助手",
+  "identifier": "com.aimemory.app.memorise.source",
+  "sourceURL": "https://raw.githubusercontent.com/ZimingADR/memorise/main/sidestore.json",
+  "subtitle": "跨端本地优先 AI 记忆助手与个人知识库",
+  "description": "对标并超越小布/小爱记忆的 Local-First AI 记忆助手。内置瞬时行动看板、多模态智能提取、iOS 快捷指令静默闪记与纯本地离线 RAG 问答。",
+  "iconURL": "https://raw.githubusercontent.com/ZimingADR/memorise/main/assets/icon.png",
+  "website": "https://github.com/ZimingADR/memorise",
+  "tintColor": "#2563EB",
+  "featuredApps": [
+    "com.aimemory.app.memorise"
+  ],
+  "apps": [
+    {
+      "name": "Memorise",
+      "bundleIdentifier": "com.aimemory.app.memorise",
+      "developerName": "ZimingADR",
+      "subtitle": "本地优先的 AI 瞬时记忆与行动看板",
+      "localizedDescription": "Memorise 是一款跨端、本地优先、零服务器成本的个人瞬时记忆助手。\n\n🌟 核心特性：\n• 瞬时行动看板：未核销的取件码与日程待办自动置顶，一键归档或复制单号\n• 多模态双通道解析：默认接入小米 MiMo mimo-v2.6-flash 大模型，强制融合原始图片与 OCR 文本\n• 纯本地离线 RAG：基于 SQLite FTS5 本地毫秒级检索，断网零 Key 也能问记忆\n• iOS 快捷指令极速闪记：通过 iOS 16+ AppIntent 绑定 Action Button，任意 App 内轻按即记，零弹窗零打断\n• WebDAV 增量同步：一卡一 JSON + 压缩图，支持坚果云与私有云盘多端安全同步",
+      "iconURL": "https://raw.githubusercontent.com/ZimingADR/memorise/main/assets/icon.png",
+      "tintColor": "#2563EB",
+      "category": "productivity",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "buildVersion": "1",
+          "date": "2026-10-18",
+          "localizedDescription": "1.0.0 官方稳定发布版：\n- 瞬时行动看板与一键核销归档\n- 小米 MiMo mimo-v2.6-flash 视觉与文本多模态提取\n- 纯本地离线 RAG 问答与 WebDAV 增量同步\n- 完美适配 iPhone 16 Pro 灵动岛与全屏安全区",
+          "downloadURL": "https://github.com/ZimingADR/memorise/releases/download/v1.0.0/AI_Memory_Unsigned.ipa",
+          "size": 25000000,
+          "minOSVersion": "16.0"
+        }
+      ]
+    }
+  ],
+  "news": []
+}

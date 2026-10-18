@@ -50,7 +50,8 @@ app.*.map.json
 settings.json
 /pending_inbox/
 /memories/
-/assets/
+/assets/*
+!/assets/icon.png
 *.ipa
 *.zip
 
