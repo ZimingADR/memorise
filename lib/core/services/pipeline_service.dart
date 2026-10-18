@@ -54,13 +54,18 @@ class PipelineService {
           // VLM 失败不中断主流程
         }
       }
+    } else {
+      // 满足用户要求：保存的内容必须包含图像，自动生成专属色调的视觉卡片
+      assetRelPath = await _generateAndSaveFallbackBanner(memoryId, rawOcrText, userNote);
     }
 
-    // --- 阶段二：结构化提取与分类打标 (Stage 2) ---
+    // --- 阶段二：结构化提取与分类打标 (Stage 2 - 强制融合 OCR 与 原图) ---
     Map<String, dynamic> extracted;
     if (settings.stage2ApiKey.isNotEmpty) {
       try {
         extracted = await _callStructuredExtraction(
+          rawImagePath: rawImagePath,
+          assetRelPath: assetRelPath,
           ocrText: rawOcrText,
           vlmDesc: vlmDescription,
           userNote: userNote,
@@ -133,13 +138,13 @@ class PipelineService {
     return memoryItem;
   }
 
-  /// 压缩图片为 WebP / JPEG，存入 `assets/<uuid>.webp`
+  /// 压缩图片并规范化保存到 `assets/<uuid>.jpg`
   Future<String> _compressAndSaveImage(String uuid, String originalPath) async {
     final docs = await getApplicationDocumentsDirectory();
     final assetsDir = Directory(p.join(docs.path, 'assets'));
     if (!assetsDir.existsSync()) assetsDir.createSync(recursive: true);
 
-    final targetFile = File(p.join(assetsDir.path, '$uuid.webp'));
+    final targetFile = File(p.join(assetsDir.path, '$uuid.jpg'));
 
     try {
       final bytes = await File(originalPath).readAsBytes();
@@ -154,17 +159,49 @@ class PipelineService {
             resized = img.copyResize(image, height: 1920);
           }
         }
-        // 编码为 WebP 或高质量 JPEG
-        final webpBytes = img.encodePng(resized); // fallback safe png/webp
-        await targetFile.writeAsBytes(webpBytes);
-        return 'assets/$uuid.webp';
+        // 编码为高质量 JPEG (体积缩减 80%+)
+        final jpgBytes = img.encodeJpg(resized, quality: 85);
+        await targetFile.writeAsBytes(jpgBytes);
+        return 'assets/$uuid.jpg';
       }
     } catch (_) {}
 
     // 若图片处理失败，复制原文件作为兜底
-    final fallbackFile = File(p.join(assetsDir.path, '$uuid.img'));
+    final fallbackFile = File(p.join(assetsDir.path, '$uuid.jpg'));
     await File(originalPath).copy(fallbackFile.path);
-    return 'assets/$uuid.img';
+    return 'assets/$uuid.jpg';
+  }
+
+  /// 满足“保存的内容必须包含图像”：当无图片输入时，自动合成优雅专属渐变卡片
+  Future<String> _generateAndSaveFallbackBanner(String uuid, String text, String note) async {
+    final docs = await getApplicationDocumentsDirectory();
+    final assetsDir = Directory(p.join(docs.path, 'assets'));
+    if (!assetsDir.existsSync()) assetsDir.createSync(recursive: true);
+
+    final targetFile = File(p.join(assetsDir.path, '$uuid.jpg'));
+    try {
+      final banner = img.Image(width: 640, height: 320);
+      final seed = (text + note + uuid).hashCode.abs();
+
+      final r1 = (90 + (seed % 90)).clamp(40, 240);
+      final g1 = (80 + ((seed ~/ 7) % 90)).clamp(40, 240);
+      final b1 = (140 + ((seed ~/ 13) % 90)).clamp(40, 240);
+
+      for (int y = 0; y < banner.height; y++) {
+        for (int x = 0; x < banner.width; x++) {
+          final t = (x / banner.width * 0.45) + (y / banner.height * 0.55);
+          final r = (r1 * (1.0 - t * 0.35)).toInt().clamp(0, 255);
+          final g = (g1 * (1.0 - t * 0.25) + 30 * t).toInt().clamp(0, 255);
+          final b = (b1 * (0.8 + t * 0.2)).toInt().clamp(0, 255);
+          banner.setPixelRgb(x, y, r, g, b);
+        }
+      }
+      final jpgBytes = img.encodeJpg(banner, quality: 88);
+      await targetFile.writeAsBytes(jpgBytes);
+      return 'assets/$uuid.jpg';
+    } catch (_) {
+      return '';
+    }
   }
 
   /// 将记忆保存为 `memories/<uuid>.json`
@@ -212,8 +249,10 @@ class PipelineService {
     return response.data['choices'][0]['message']['content'] as String? ?? '';
   }
 
-  /// 阶段二：动态 Schema 结构化提取
+  /// 阶段二：动态 Schema 结构化提取（强制融合原图画面与 OCR 文本）
   Future<Map<String, dynamic>> _callStructuredExtraction({
+    String? rawImagePath,
+    String assetRelPath = '',
     required String ocrText,
     required String vlmDesc,
     required String userNote,
@@ -226,7 +265,7 @@ class PipelineService {
     ].map((s) => s.toPromptSchema()).toList();
 
     final systemPrompt = '''
-你是一个精准的个人记忆结构化提取引擎。请根据用户提供的【OCR 提取文本】、【画面视觉描述】、【用户补充备注】以及【当前系统时间】，将该条信息归类并提取为严格的 JSON 格式。
+你是MiMo，由小米公司研发的AI智能助手。你同时是一个精准的个人记忆结构化提取引擎。请综合用户传入的【图像画面】与【OCR 提取文本】、【用户补充备注】以及【当前系统时间】，将该条信息归类并提取为严格的 JSON 格式。
 
 ### 当前系统时间
 ${DateFormat("yyyy-MM-dd'T'HH:mm:ss").format(now)}
@@ -241,11 +280,36 @@ ${jsonEncode(allSchemas)}
 4. **输出格式**：必须且只能输出合法的 JSON 对象，不加 markdown 标记，包含顶层键：category, title, status ("pending" 或 "archived"), summary_points (最多3条字符串数组), structured_data (对应字段字典), tags (3-6个标签数组), search_keywords (空格分隔字符串)。
 ''';
 
-    final userContent = '''
-【OCR 提取文本】：$ocrText
-【画面视觉描述】：$vlmDesc
-【用户补充备注】：$userNote
-''';
+    dynamic userContent;
+    File? imgToRead;
+    if (rawImagePath != null && File(rawImagePath).existsSync()) {
+      imgToRead = File(rawImagePath);
+    } else if (assetRelPath.isNotEmpty) {
+      final docs = await getApplicationDocumentsDirectory();
+      final pth = p.join(docs.path, assetRelPath);
+      if (File(pth).existsSync()) imgToRead = File(pth);
+    }
+
+    if (imgToRead != null) {
+      try {
+        final imgBytes = await imgToRead.readAsBytes();
+        final b64 = base64Encode(imgBytes);
+        userContent = [
+          {
+            'type': 'image_url',
+            'image_url': {'url': 'data:image/jpeg;base64,$b64'},
+          },
+          {
+            'type': 'text',
+            'text': '【OCR 提取文本】：$ocrText\n【画面视觉补充】：$vlmDesc\n【用户补充备注】：$userNote',
+          },
+        ];
+      } catch (_) {
+        userContent = '【OCR 提取文本】：$ocrText\n【画面视觉补充】：$vlmDesc\n【用户补充备注】：$userNote';
+      }
+    } else {
+      userContent = '【OCR 提取文本】：$ocrText\n【画面视觉补充】：$vlmDesc\n【用户补充备注】：$userNote';
+    }
 
     final response = await _dio.post(
       '${settings.stage2BaseUrl}/chat/completions',
@@ -298,14 +362,38 @@ ${jsonEncode(allSchemas)}
     return rawVec.map((e) => (e as num).toDouble()).toList();
   }
 
-  /// 阶段四：Ask AI / RAG 智能问答
+  /// 阶段四：Ask AI / RAG 智能问答（支持纯本地离线 RAG 与远程模型）
   Future<String> askAi({
     required String query,
     required List<MemoryItem> recalledMemories,
   }) async {
     final settings = SettingsService.instance.settings;
-    if (settings.stage4ApiKey.isEmpty) {
-      return '请先在「设置」中配置 API Key，即可开启基于个人知识库的智能对话与跨卡片问答。';
+
+    // --- 本地离线 RAG 模式 ---
+    if (settings.ragMode == 'local_offline' || settings.stage4ApiKey.isEmpty) {
+      if (recalledMemories.isEmpty) {
+        return '【本地离线检索】在您的个人记忆库中暂未找到与“$query”匹配的卡片。';
+      }
+      final buffer = StringBuffer('【本地离线 RAG 检索解答】\n');
+      buffer.writeln('根据本地 FTS5 全文索引，为您精准检索到以下 ${recalledMemories.length} 条记忆证据：\n');
+      for (int i = 0; i < recalledMemories.length; i++) {
+        final item = recalledMemories[i];
+        final schema = DefaultCategories.findById(item.category);
+        buffer.writeln('[${i + 1}] **${item.title}** (${schema.name})');
+        if (item.structuredData.isNotEmpty) {
+          final entries = item.structuredData.entries.map((e) => '${e.key}: ${e.value}').join('，');
+          buffer.writeln('    • 详细信息：$entries');
+        }
+        for (final pt in item.summaryPoints) {
+          buffer.writeln('    • $pt');
+        }
+        if (item.userNote.isNotEmpty) {
+          buffer.writeln('    • 备注：${item.userNote}');
+        }
+        buffer.writeln();
+      }
+      buffer.writeln('💡 提示：您可点击上方卡片角标直接查看详情。如需生成跨卡片语义综合提炼，可在「设置」中切换为云端模型并填入 Key。');
+      return buffer.toString().trim();
     }
 
     final buffer = StringBuffer();
@@ -330,7 +418,7 @@ ${jsonEncode(allSchemas)}
     }
 
     final systemPrompt = '''
-你是一个强大的个人记忆助手。请依据用户检索出的以下【相关记忆卡片】回答用户的问题。
+你是MiMo，由小米公司研发的AI智能助手。请依据用户检索出的以下【相关记忆卡片】回答用户的问题。
 回答要求：
 1. 态度温和、准确、条理清晰。
 2. 引用某张卡片的事实或取件码时，务必在对应语句后带上角标，如 [1]、[2]，方便用户回溯溯源。

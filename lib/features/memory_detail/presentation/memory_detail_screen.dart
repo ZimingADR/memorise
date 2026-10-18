@@ -48,6 +48,12 @@ class _MemoryDetailScreenState extends ConsumerState<MemoryDetailScreen> {
       _item = _item.copyWith(status: newStatus);
     });
     ref.read(refreshTriggerProvider.notifier).state++;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(newStatus == 'archived' ? '✅已归档' : '已恢复待办'),
+        duration: const Duration(seconds: 1),
+      ),
+    );
   }
 
   void _deleteMemory() {

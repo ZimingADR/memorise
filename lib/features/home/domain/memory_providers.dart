@@ -24,10 +24,14 @@ final memoryListProvider = Provider<List<MemoryItem>>((ref) {
       query: query.trim(),
       topK: 50,
     );
-    if (category != 'all') {
-      return results.where((item) => item.category == category).toList();
+    if (category == 'archived') {
+      return results.where((item) => item.status == 'archived').toList();
     }
-    return results;
+    final activeResults = results.where((item) => item.status == 'pending').toList();
+    if (category != 'all') {
+      return activeResults.where((item) => item.category == category).toList();
+    }
+    return activeResults;
   }
 
   return MemoryDatabase.instance.getAll(

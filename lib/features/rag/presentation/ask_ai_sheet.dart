@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/database/memory_database.dart';
 import '../../../core/models/memory_item.dart';
 import '../../../core/services/pipeline_service.dart';
+import '../../../core/services/settings_service.dart';
 import '../../memory_detail/presentation/memory_detail_screen.dart';
 
 class AskAiSheet extends StatefulWidget {
@@ -113,7 +114,64 @@ class _AskAiSheetState extends State<AskAiSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
+
+          // RAG 推理引擎模式切换（支持小米 MiMo 远程大模型与纯本地离线 RAG）
+          Builder(
+            builder: (context) {
+              final settings = SettingsService.instance.settings;
+              final isLocal = settings.ragMode == 'local_offline';
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    InkWell(
+                      borderRadius: BorderRadius.circular(20),
+                      onTap: () async {
+                        setState(() {
+                          settings.ragMode = isLocal ? 'remote_api' : 'local_offline';
+                        });
+                        await SettingsService.instance.saveSettings(settings);
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: isLocal
+                              ? const Color(0xFF10B981).withValues(alpha: 0.15)
+                              : const Color(0xFFFF6900).withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isLocal
+                                ? const Color(0xFF10B981).withValues(alpha: 0.5)
+                                : const Color(0xFFFF6900).withValues(alpha: 0.5),
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isLocal ? Icons.offline_bolt_rounded : Icons.cloud_done_rounded,
+                              size: 14,
+                              color: isLocal ? const Color(0xFF10B981) : const Color(0xFFFF6900),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(
+                              isLocal ? '纯本地离线 RAG (点击切换)' : '小米 MiMo 问答 (点击切换)',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: isLocal ? const Color(0xFF10B981) : const Color(0xFFFF6900),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
 
           // 提问输入框
           Row(

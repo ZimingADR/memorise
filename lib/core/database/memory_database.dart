@@ -173,18 +173,27 @@ class MemoryDatabase {
     return _rowToItem(results.first);
   }
 
-  /// 获取所有有效记忆
-  List<MemoryItem> getAll({String? category, String? status}) {
+  /// 获取所有有效记忆（默认只展示未归档 pending 项，除非显式指定 status 或选择 archived 分类或 includeArchived = true）
+  List<MemoryItem> getAll({String? category, String? status, bool includeArchived = false}) {
     String sql = 'SELECT * FROM memories WHERE is_deleted = 0';
     final params = <dynamic>[];
 
-    if (category != null && category != 'all') {
-      sql += ' AND category = ?';
-      params.add(category);
-    }
-    if (status != null) {
+    if (includeArchived) {
+      if (category != null && category != 'all') {
+        sql += ' AND category = ?';
+        params.add(category);
+      }
+    } else if (category == 'archived') {
+      sql += " AND status = 'archived'";
+    } else {
+      final targetStatus = status ?? 'pending';
       sql += ' AND status = ?';
-      params.add(status);
+      params.add(targetStatus);
+
+      if (category != null && category != 'all') {
+        sql += ' AND category = ?';
+        params.add(category);
+      }
     }
 
     sql += ' ORDER BY created_at DESC;';

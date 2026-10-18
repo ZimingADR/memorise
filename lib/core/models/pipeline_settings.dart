@@ -1,6 +1,7 @@
 import 'category_schema.dart';
 
 enum ProviderPreset {
+  xiaomi,
   siliconflow,
   deepseek,
   openai,
@@ -37,6 +38,7 @@ class PipelineSettings {
   String stage4Model;
   int stage4TopK;
   double stage4VectorWeight;
+  String ragMode; // "remote_api" | "local_offline"
 
   // --- 自定义分类 Schema 列表 ---
   List<CategorySchema> customSchemas;
@@ -49,25 +51,26 @@ class PipelineSettings {
   String webdavSyncPolicy; // "full" | "lazy_image" | "text_only"
 
   PipelineSettings({
-    this.stage1Mode = "smart_hybrid",
+    this.stage1Mode = "always_vlm",
     this.vlmTriggerCharThreshold = 20,
-    this.vlmBaseUrl = "https://api.siliconflow.cn/v1",
+    this.vlmBaseUrl = "https://api.xiaomimimo.com/v1",
     this.vlmApiKey = "",
-    this.vlmModel = "Qwen/Qwen2.5-VL-72B-Instruct",
-    this.stage2BaseUrl = "https://api.siliconflow.cn/v1",
+    this.vlmModel = "mimo-v2.6-flash",
+    this.stage2BaseUrl = "https://api.xiaomimimo.com/v1",
     this.stage2ApiKey = "",
-    this.stage2Model = "deepseek-ai/DeepSeek-V3",
+    this.stage2Model = "mimo-v2.6-flash",
     this.stage2Temperature = 0.1,
-    this.stage3Mode = "remote_api",
-    this.stage3BaseUrl = "https://api.siliconflow.cn/v1",
+    this.stage3Mode = "disabled",
+    this.stage3BaseUrl = "https://api.xiaomimimo.com/v1",
     this.stage3ApiKey = "",
-    this.stage3Model = "BAAI/bge-m3",
+    this.stage3Model = "mimo-v2.6-flash",
     this.stage3Dim = 1024,
-    this.stage4BaseUrl = "https://api.siliconflow.cn/v1",
+    this.stage4BaseUrl = "https://api.xiaomimimo.com/v1",
     this.stage4ApiKey = "",
-    this.stage4Model = "deepseek-ai/DeepSeek-V3",
+    this.stage4Model = "mimo-v2.6-flash",
     this.stage4TopK = 8,
     this.stage4VectorWeight = 0.6,
+    this.ragMode = "remote_api",
     List<CategorySchema>? customSchemas,
     this.webdavEnabled = false,
     this.webdavUrl = "",
@@ -79,6 +82,23 @@ class PipelineSettings {
   /// 一键应用服务商预设
   void applyPreset(ProviderPreset preset, String key) {
     switch (preset) {
+      case ProviderPreset.xiaomi:
+        vlmBaseUrl = "https://api.xiaomimimo.com/v1";
+        vlmApiKey = key;
+        vlmModel = "mimo-v2.6-flash";
+
+        stage2BaseUrl = "https://api.xiaomimimo.com/v1";
+        stage2ApiKey = key;
+        stage2Model = "mimo-v2.6-flash";
+
+        stage3Mode = "disabled"; // 使用纯本地 SQLite FTS5 全文搜索
+
+        stage4BaseUrl = "https://api.xiaomimimo.com/v1";
+        stage4ApiKey = key;
+        stage4Model = "mimo-v2.6-flash";
+        ragMode = "remote_api";
+        break;
+
       case ProviderPreset.siliconflow:
         vlmBaseUrl = "https://api.siliconflow.cn/v1";
         vlmApiKey = key;
@@ -97,6 +117,7 @@ class PipelineSettings {
         stage4BaseUrl = "https://api.siliconflow.cn/v1";
         stage4ApiKey = key;
         stage4Model = "deepseek-ai/DeepSeek-V3";
+        ragMode = "remote_api";
         break;
 
       case ProviderPreset.deepseek:
@@ -113,6 +134,7 @@ class PipelineSettings {
         stage4BaseUrl = "https://api.deepseek.com/v1";
         stage4ApiKey = key;
         stage4Model = "deepseek-chat";
+        ragMode = "remote_api";
         break;
 
       case ProviderPreset.openai:
@@ -133,6 +155,7 @@ class PipelineSettings {
         stage4BaseUrl = "https://api.openai.com/v1";
         stage4ApiKey = key;
         stage4Model = "gpt-4o";
+        ragMode = "remote_api";
         break;
 
       case ProviderPreset.gemini:
@@ -153,6 +176,7 @@ class PipelineSettings {
         stage4BaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai/";
         stage4ApiKey = key;
         stage4Model = "gemini-1.5-pro";
+        ragMode = "remote_api";
         break;
 
       case ProviderPreset.ollama:
@@ -173,6 +197,7 @@ class PipelineSettings {
         stage4BaseUrl = "http://localhost:11434/v1";
         stage4ApiKey = "ollama";
         stage4Model = "qwen2.5:7b";
+        ragMode = "remote_api";
         break;
 
       case ProviderPreset.custom:
@@ -201,6 +226,7 @@ class PipelineSettings {
       'stage4_model': stage4Model,
       'stage4_top_k': stage4TopK,
       'stage4_vector_weight': stage4VectorWeight,
+      'rag_mode': ragMode,
       'custom_schemas': customSchemas.map((e) => e.toJson()).toList(),
       'webdav_enabled': webdavEnabled,
       'webdav_url': webdavUrl,
@@ -212,25 +238,26 @@ class PipelineSettings {
 
   factory PipelineSettings.fromJson(Map<String, dynamic> json) {
     return PipelineSettings(
-      stage1Mode: json['stage1_mode'] as String? ?? 'smart_hybrid',
+      stage1Mode: json['stage1_mode'] as String? ?? 'always_vlm',
       vlmTriggerCharThreshold: json['vlm_trigger_char_threshold'] as int? ?? 20,
-      vlmBaseUrl: json['vlm_base_url'] as String? ?? 'https://api.siliconflow.cn/v1',
+      vlmBaseUrl: json['vlm_base_url'] as String? ?? 'https://api.xiaomimimo.com/v1',
       vlmApiKey: json['vlm_api_key'] as String? ?? '',
-      vlmModel: json['vlm_model'] as String? ?? 'Qwen/Qwen2.5-VL-72B-Instruct',
-      stage2BaseUrl: json['stage2_base_url'] as String? ?? 'https://api.siliconflow.cn/v1',
+      vlmModel: json['vlm_model'] as String? ?? 'mimo-v2.6-flash',
+      stage2BaseUrl: json['stage2_base_url'] as String? ?? 'https://api.xiaomimimo.com/v1',
       stage2ApiKey: json['stage2_api_key'] as String? ?? '',
-      stage2Model: json['stage2_model'] as String? ?? 'deepseek-ai/DeepSeek-V3',
+      stage2Model: json['stage2_model'] as String? ?? 'mimo-v2.6-flash',
       stage2Temperature: (json['stage2_temperature'] as num?)?.toDouble() ?? 0.1,
-      stage3Mode: json['stage3_mode'] as String? ?? 'remote_api',
-      stage3BaseUrl: json['stage3_base_url'] as String? ?? 'https://api.siliconflow.cn/v1',
+      stage3Mode: json['stage3_mode'] as String? ?? 'disabled',
+      stage3BaseUrl: json['stage3_base_url'] as String? ?? 'https://api.xiaomimimo.com/v1',
       stage3ApiKey: json['stage3_api_key'] as String? ?? '',
-      stage3Model: json['stage3_model'] as String? ?? 'BAAI/bge-m3',
+      stage3Model: json['stage3_model'] as String? ?? 'mimo-v2.6-flash',
       stage3Dim: json['stage3_dim'] as int? ?? 1024,
-      stage4BaseUrl: json['stage4_base_url'] as String? ?? 'https://api.siliconflow.cn/v1',
+      stage4BaseUrl: json['stage4_base_url'] as String? ?? 'https://api.xiaomimimo.com/v1',
       stage4ApiKey: json['stage4_api_key'] as String? ?? '',
-      stage4Model: json['stage4_model'] as String? ?? 'deepseek-ai/DeepSeek-V3',
+      stage4Model: json['stage4_model'] as String? ?? 'mimo-v2.6-flash',
       stage4TopK: json['stage4_top_k'] as int? ?? 8,
       stage4VectorWeight: (json['stage4_vector_weight'] as num?)?.toDouble() ?? 0.6,
+      ragMode: json['rag_mode'] as String? ?? 'remote_api',
       customSchemas: (json['custom_schemas'] as List<dynamic>?)
           ?.map((e) => CategorySchema.fromJson(e as Map<String, dynamic>))
           .toList() ?? [],

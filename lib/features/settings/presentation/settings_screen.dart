@@ -195,9 +195,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         spacing: 8,
                         runSpacing: 8,
                         children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.flash_on_rounded, size: 16),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFFFF6900),
+                              foregroundColor: Colors.white,
+                              elevation: 2,
+                            ),
+                            onPressed: () => _applyPreset(ProviderPreset.xiaomi),
+                            label: const Text('小米 MiMo (默认推荐)'),
+                          ),
                           ElevatedButton(
                             onPressed: () => _applyPreset(ProviderPreset.siliconflow),
-                            child: const Text('硅基流动 (推荐)'),
+                            child: const Text('硅基流动'),
                           ),
                           ElevatedButton(
                             onPressed: () => _applyPreset(ProviderPreset.deepseek),
@@ -295,9 +305,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildGeekStageCard(
                 title: 'Stage 4: Ask AI / RAG 智能问答层',
                 children: [
+                  DropdownButtonFormField<String>(
+                    initialValue: _settings.ragMode,
+                    decoration: const InputDecoration(labelText: 'RAG 推理引擎模式'),
+                    items: const [
+                      DropdownMenuItem(value: 'remote_api', child: Text('远程 API 大模型 (如 Xiaomi MiMo / DeepSeek)')),
+                      DropdownMenuItem(value: 'local_offline', child: Text('纯本地离线 RAG (基于 FTS5 索引，无需网络与 Key)')),
+                    ],
+                    onChanged: (v) => setState(() => _settings.ragMode = v!),
+                  ),
+                  const SizedBox(height: 8),
                   TextField(controller: _s4BaseUrl, decoration: const InputDecoration(labelText: 'RAG Base URL')),
                   TextField(controller: _s4Key, obscureText: true, decoration: const InputDecoration(labelText: 'RAG API Key')),
-                  TextField(controller: _s4Model, decoration: const InputDecoration(labelText: 'RAG Model (如 deepseek-reasoner)')),
+                  TextField(controller: _s4Model, decoration: const InputDecoration(labelText: 'RAG Model (如 mimo-v2.6-flash)')),
                   const SizedBox(height: 8),
                   Text('向量 vs 关键词 融合权重比: ${(_settings.stage4VectorWeight * 10).round() / 10} : ${(10 - (_settings.stage4VectorWeight * 10).round()) / 10}'),
                   Slider(
@@ -310,6 +330,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ],
               ),
             ],
+
+            const SizedBox(height: 24),
+
+            // iOS 快捷指令配置指引
+            Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Row(
+                      children: [
+                        Icon(Icons.bolt_rounded, color: Colors.orange, size: 20),
+                        SizedBox(width: 8),
+                        Text('iOS 快捷指令极速闪记配置', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '配合 iOS 16+ AppIntent，通过 iPhone 操作按钮 (Action Button) 或轻点背面实现零打断入库：',
+                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      '1. 打开 iPhone「快捷指令」App 新建快捷指令；\n2. 添加动作「截屏」(获取当前屏幕)；\n3. 添加动作「从图像中提取文本」(系统原生 Vision OCR)；\n4. 添加动作「存入 AI 记忆」(输入截图与 OCR 文本)；\n5. 默认搭载小米 MiMo 多模态模型 (mimo-v2.6-flash)，强制融合图像与文字！',
+                      style: TextStyle(fontSize: 13, height: 1.6),
+                    ),
+                  ],
+                ),
+              ),
+            ),
 
             const SizedBox(height: 24),
 

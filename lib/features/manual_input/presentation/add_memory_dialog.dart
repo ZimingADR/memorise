@@ -2,6 +2,9 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/database/memory_database.dart';
 import '../../../core/services/pipeline_service.dart';
@@ -44,8 +47,26 @@ class _AddMemoryDialogState extends ConsumerState<AddMemoryDialog> {
 
     setState(() => _isProcessing = true);
     try {
+      String? imagePath = _selectedImagePath;
+      if (imagePath == null) {
+        final tempDir = await getTemporaryDirectory();
+        final tempFile = File(p.join(tempDir.path, 'banner_${DateTime.now().millisecondsSinceEpoch}.jpg'));
+        final banner = img.Image(width: 600, height: 260);
+        for (int y = 0; y < banner.height; y++) {
+          for (int x = 0; x < banner.width; x++) {
+            final t = (x / banner.width * 0.4) + (y / banner.height * 0.6);
+            final r = (37 + 50 * t).toInt().clamp(0, 255);
+            final g = (99 + 80 * t).toInt().clamp(0, 255);
+            final b = (235 - 30 * t).toInt().clamp(0, 255);
+            banner.setPixelRgb(x, y, r, g, b);
+          }
+        }
+        await tempFile.writeAsBytes(img.encodeJpg(banner, quality: 90));
+        imagePath = tempFile.path;
+      }
+
       final item = await PipelineService.instance.processNewMemory(
-        rawImagePath: _selectedImagePath,
+        rawImagePath: imagePath,
         rawOcrText: _ocrController.text.trim(),
         userNote: _noteController.text.trim(),
         sourcePlatform: 'manual_desktop',
